@@ -556,7 +556,21 @@ public extension AuthorizationCodeFlowBackendManager {
                         // set `self.refreshTokensPublisher` to `nil`
                         // so that the caller does not receive a publisher
                         // that has already finished.
-                        receiveCompletion: { _ in
+                        receiveCompletion: { completion in
+                            switch completion {
+                            case .failure(let error):
+                                // If a user revokes access using Spotify, the refresh token will be revoked
+                                if let authError = error as? SpotifyAuthenticationError,
+                                   authError.errorDescription == "Refresh token revoked" {
+                                    Self.logger.warning("Access was revoked")
+                                    // Clear the stored tokens since they're no longer valid
+                                    DispatchQueue.main.async {
+                                        self.deauthorize()
+                                    }
+                                }
+                            case .finished:
+                                break
+                            }
                             self.refreshTokensPublisher = nil
                         }
                     )

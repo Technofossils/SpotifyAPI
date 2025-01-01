@@ -85,6 +85,20 @@ extension SpotifyAPI {
         return self.authorizationManager.refreshTokens(
             onlyIfExpired: true, tolerance: 120
         )
+        .catch { error -> AnyPublisher<Void, Error> in
+            // Handle revoked token error specifically
+            if let authError = error as? SpotifyAuthenticationError,
+               authError.errorDescription == "Refresh token revoked" {
+                self.logger.warning("unauthorized: access was revoked")
+                
+                // Convert to unauthorized error for consistent handling
+                return SpotifyGeneralError.unauthorized(
+                    "unauthorized: access was revoked"
+                ).anyFailingPublisher()
+            }
+            // Pass through other errors
+            return error.anyFailingPublisher()
+        }
         .tryMap { () -> String in
             
             // Since we already checked to see if the access token was
